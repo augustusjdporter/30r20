@@ -2,7 +2,6 @@ from ci import predband
 import matplotlib.pyplot as plt
 import datetime
 import numpy as np
-import jdcal
 import matplotlib.ticker as mticker
 import pandas as pd
 import statsmodels.api as sm
@@ -10,6 +9,12 @@ import uncertainties.unumpy as unp
 import uncertainties as unc
 from strava_api import get_strava_data
 from logbook_api import get_logbook_data
+
+def convert_numeric_date_to_date(numeric_date):
+    return numeric_date * pd.Timedelta("1d") + pd.Timestamp("1970-01-01")
+
+def convert_date_to_numeric_date(date):
+    return (date - pd.Timestamp("1970-01-01")) / pd.Timedelta("1d")
 
 def get_distance(split_string):
     [mins, secs] = split_string.split(":")
@@ -32,30 +37,30 @@ def get_data(data_source):
     else:
         raise Exception(f"unsupported data source: {data_source}")
     dates = pd.to_datetime(data["date"]).dt.tz_localize(None)
-    jds = (dates - pd.Timestamp("1970-01-01")) / pd.Timedelta("1d")
+    numeric_dates = convert_date_to_numeric_date(dates)
     distances = data["distance"]
 
-    return np.array(dates), np.array(jds), np.array(distances)
+    return np.array(dates), np.array(numeric_dates), np.array(distances)
 
 def run(goal_split = "1:48.8", y_min=7900, y_max=8300, data_source="logbook"):
-    dates, jds, distances = get_data(data_source=data_source)
+    dates, numeric_dates, distances = get_data(data_source=data_source)
     if len(distances) < 3:
         raise Exception("Need at least 3 data points")
 
-    indices = np.argsort(jds)
-    jds = jds[indices]
+    indices = np.argsort(numeric_dates)
+    numeric_dates = numeric_dates[indices]
     distances = distances[indices]
     dates = dates[indices]
 
-    if len(jds) < 3:
+    if len(numeric_dates) < 3:
         return
 
     plt.figure(figsize=(6.5, 5))
 
-    min_jds = np.min(jds)
-    jds -= min_jds
+    min_num_date = np.min(numeric_dates)
+    numeric_dates -= min_num_date
 
-    X = jds.reshape(-1, 1)
+    X = numeric_dates.reshape(-1, 1)
 
     X = sm.add_constant(X)
 
@@ -77,31 +82,31 @@ def run(goal_split = "1:48.8", y_min=7900, y_max=8300, data_source="logbook"):
     plt.xlabel("Date")
     plt.ylabel("Distance")
 
-    new_jds = np.linspace(0, np.max(jds)-np.min(jds)+0*100, 10 ** 3)
-    new_jds_invisible = np.linspace(0, 10**4, 3*10 ** 4)
+    numeric_date_grid = np.linspace(0, np.max(numeric_dates)-np.min(numeric_dates)+0*100, 10 ** 3)
+    numeric_date_invisible = np.linspace(0, 10**4, 3*10 ** 4)
     new_dates = []
-    for njd in new_jds:
-        date = (min_jds + njd) * pd.Timedelta("1d") + pd.Timestamp("1970-01-01")
+    for numeric_date_item in numeric_date_grid:
+        date = convert_numeric_date_to_date(min_num_date + numeric_date_item)
         d = date.to_pydatetime()
         new_dates.append(d)
 
-    X = new_jds.reshape(-1, 1)
+    X = numeric_date_grid.reshape(-1, 1)
     X = sm.add_constant(X)
 
     def f(x,b,a):
         return x*a + b
-    error_preds = predband(new_jds, jds, distances, fit_vals, f)
+    error_preds = predband(numeric_date_grid, numeric_dates, distances, fit_vals, f)
 
     pcov = results.cov_params()
     # because b and a are correlated, cannot do a simple adding errors in quadrature
     b, a = unc.correlated_values(fit_vals, pcov)
-    predict = a*new_jds + b
+    predict = a*numeric_date_grid + b
     e_mean = unp.std_devs(predict)
     predict = unp.nominal_values(predict)
 
     y_desired = get_distance(goal_split)
 
-    predict_invisible = a * new_jds_invisible + b
+    predict_invisible = a * numeric_date_invisible + b
     e_inv = unp.std_devs(predict_invisible)
     predict_invisible = unp.nominal_values(predict_invisible)
     factor = 1.96
@@ -109,21 +114,21 @@ def run(goal_split = "1:48.8", y_min=7900, y_max=8300, data_source="logbook"):
     below = predict_invisible - factor*e_inv
 
     index = np.argmin(np.abs(above - y_desired))
-    t_above = new_jds_invisible[index]
+    t_above = numeric_date_invisible[index]
 
     index = np.argmin(np.abs(below - y_desired))
-    t_below = new_jds_invisible[index]
+    t_below = numeric_date_invisible[index]
     below_value = below[index]
 
-    min_date = jdcal.jd2gcal(min_jds, t_above)
-    max_date = jdcal.jd2gcal(min_jds, t_below)
+    min_date = convert_numeric_date_to_date(min_num_date + t_above)
+    max_date = convert_numeric_date_to_date(min_num_date + t_below)
     if below_value < 8175:
         max_date = ["-", "-", "-"]
 
     plt.axhline(y_desired, c="gold")
 
     interval = 1.96 * e_mean
-    plt.plot(new_dates, predict + interval, c="black", label=r"Goal time: {}-{}-{} - {}-{}-{} (95% CL)".format(min_date[0], min_date[1], min_date[2], max_date[0], max_date[1], max_date[2]))
+    plt.plot(new_dates, predict + interval, c="black", label=r"Goal time: {} - {} (95% CL)".format(min_date, max_date))
     plt.plot(new_dates, predict - interval, c="black")
     plt.plot(new_dates, predict + error_preds, c="red", label="95% PL")
     plt.plot(new_dates, predict - error_preds, c="red")

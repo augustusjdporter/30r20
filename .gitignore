@@ -3,3 +3,4 @@ secrets.json
 build
 dist
 *.spec
+.DS_STORE
