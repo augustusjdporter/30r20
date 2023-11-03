@@ -33,7 +33,7 @@ def get_strava_data():
     # Close the browser
     browser.close_current_tab()
 
-
+    client_secret = get_secrets()["strava_client_secret"]
 
     ret = requests.post(
         f"https://www.strava.com/oauth/token?client_id=116139&client_secret={client_secret}&code={code}&grant_type=authorization_code")
@@ -45,7 +45,6 @@ def get_strava_data():
     auth_url = "https://www.strava.com/oauth/token"
     activites_url = "https://www.strava.com/api/v3/athlete/activities"
 
-    client_secret = get_secrets()["strava_client_secret"]
     payload = {
         'client_id': "116139",
         'client_secret': client_secret,
