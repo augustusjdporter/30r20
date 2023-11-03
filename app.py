@@ -8,6 +8,8 @@ import pandas as pd
 import statsmodels.api as sm
 import uncertainties.unumpy as unp
 import uncertainties as unc
+from strava_api import get_strava_data
+from logbook_api import get_logbook_data
 
 def get_distance(split_string):
     [mins, secs] = split_string.split(":")
@@ -22,24 +24,21 @@ def get_distance(split_string):
     return distance
 
 
-def get_data(file):
-    data = pd.read_csv(file)
-    dates = []
-    jds = []
-    distances = []
-    # for distance, day, month, year in data:
-    for index, row in data.iterrows():
-        distance, day, month, year = row
-        distances.append(distance)
-        jd = sum(jdcal.gcal2jd(year, month, day))
-        date = datetime.date(year, month, day)
-        jds.append(jd)
-        dates.append(date)
-
+def get_data(data_source):
+    if data_source == "logbook":
+        data = get_logbook_data()
+    elif data_source == "strava":
+        data = get_strava_data()
+    else:
+        raise Exception(f"unsupported data source: {data_source}")
+    dates = pd.to_datetime(data["date"]).dt.tz_localize(None)
+    jds = (dates - pd.Timestamp("1970-01-01")) / pd.Timedelta("1d")
+    distances = data["distance"]
 
     return np.array(dates), np.array(jds), np.array(distances)
-def run(file, goal_split = "1:48.8", y_min=7900, y_max=8300):
-    dates, jds, distances = get_data(file=file)
+
+def run(goal_split = "1:48.8", y_min=7900, y_max=8300, data_source="logbook"):
+    dates, jds, distances = get_data(data_source=data_source)
     if len(distances) < 3:
         raise Exception("Need at least 3 data points")
 
@@ -82,14 +81,8 @@ def run(file, goal_split = "1:48.8", y_min=7900, y_max=8300):
     new_jds_invisible = np.linspace(0, 10**4, 3*10 ** 4)
     new_dates = []
     for njd in new_jds:
-        YYYY, MM, DD, HH = jdcal.jd2gcal(min_jds, njd)
-        HH *= 24
-        mm = (HH % 1) * 60
-        ss = (mm % 1) * 60
-        HH = int(HH)
-        mm = int(mm)
-        ss = int(ss)
-        d = datetime.datetime(YYYY, MM, DD, HH, mm, ss)
+        date = (min_jds + njd) * pd.Timedelta("1d") + pd.Timestamp("1970-01-01")
+        d = date.to_pydatetime()
         new_dates.append(d)
 
     X = new_jds.reshape(-1, 1)
@@ -167,9 +160,11 @@ def run(file, goal_split = "1:48.8", y_min=7900, y_max=8300):
     ax.set_ylim([y_min, y_max])
 
     x_lim_window = 10
-    orig_ax.set_xlim([min(dates) - datetime.timedelta(days=x_lim_window), max(dates) + datetime.timedelta(days=x_lim_window)])
+    min_date = pd.Timestamp(min(dates))
+    max_date = pd.Timestamp(max(dates))
+    orig_ax.set_xlim([min_date - datetime.timedelta(days=x_lim_window), max_date + datetime.timedelta(days=x_lim_window)])
     plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
-    run(file="/Users/augustusporter/projects/test_project/30r20/30r20.csv")
+    run()

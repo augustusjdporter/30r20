@@ -4,3 +4,7 @@ matplotlib
 jdcal
 statsmodels
 uncertainties
+requests
+urllib3
+oauthlib
+OAuthBrowser

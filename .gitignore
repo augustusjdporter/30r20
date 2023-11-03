@@ -1,1 +1,4 @@
 .idea
+secrets.json
+build
+dist
