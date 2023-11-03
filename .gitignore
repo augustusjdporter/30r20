@@ -2,3 +2,4 @@
 secrets.json
 build
 dist
+*.spec

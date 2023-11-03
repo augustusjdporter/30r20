@@ -31,7 +31,7 @@ def get_strava_data():
     code = parse_qs(response_url.query).get('code')[0]
     print("\nCode: %s\n" % code)
     # Close the browser
-    browser.quit()
+    browser.close_current_tab()
 
 
 

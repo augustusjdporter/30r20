@@ -34,6 +34,7 @@ def get_logbook_data():
     response_url = urlparse(browser.get_current_url())
     code = parse_qs(response_url.query).get('code')[0]
     print("\nCode: %s\n" % code)
+    browser.close_current_tab()
 
     client_secret = get_secrets()["logbook_client_secret"]
 
