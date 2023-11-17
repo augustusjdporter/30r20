@@ -1,4 +1,6 @@
 from ci import predband
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import datetime
 import numpy as np
