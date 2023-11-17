@@ -5,7 +5,8 @@ from OAuthBrowser import Chrome, Wait
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 from utils import get_secrets
-
+from selenium import webdriver
+import time
 directory = Path(__file__).parent
 
 client_id = 'PqQOAZNDFYOt5EfrFucgza9gaGBnl0heiBnDoOVF'
@@ -23,18 +24,25 @@ def get_logbook_data():
 
     print(url)
 
-    browser = Chrome(window_geometry=(100, 22, 400, 690))
-    # Pass Authentication URL
-    browser.open_new_window(url)
-    # Initialise Wait
-    wait = Wait(browser)
-    # Wait till query "code" is present in the URL.
-    wait.until_present_query('code')
-    # Fetch the url
-    response_url = urlparse(browser.get_current_url())
-    code = parse_qs(response_url.query).get('code')[0]
+    # browser = Chrome(window_geometry=(100, 22, 400, 690))
+    # # Pass Authentication URL
+    # browser.open_new_window(url)
+    # # Initialise Wait
+    # wait = Wait(browser)
+    # # Wait till query "code" is present in the URL.
+    # wait.until_present_query('code')
+    driver = webdriver.Edge()
+    driver.get(url)
+    while True:
+        print(driver.current_url)
+        current_url = driver.current_url
+        if "?code=" in current_url:
+            break
+        time.sleep(1)
+
+    code = parse_qs(urlparse(current_url).query).get('code')[0]
     print("\nCode: %s\n" % code)
-    browser.close_current_tab()
+    driver.close()
 
     client_secret = get_secrets()["logbook_client_secret"]
 
